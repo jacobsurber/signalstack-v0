@@ -1,62 +1,86 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Badge } from "@/components/ui/badge"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Wifi, WifiOff, RefreshCw, CheckCircle, XCircle, AlertCircle, Activity, Database, Zap } from "lucide-react"
+import {
+  Activity,
+  WifiOff,
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  Zap,
+  Database,
+  Brain,
+  TrendingUp,
+  Shield,
+  RefreshCw,
+  Wifi,
+} from "lucide-react"
 
 interface ConnectionStatus {
   service: string
-  status: "connected" | "disconnected" | "error"
-  lastChecked: string
+  status: "connected" | "partial" | "disconnected" | "error"
   responseTime?: number
+  lastChecked: string
   error?: string
 }
 
+interface ConnectionResponse {
+  success: boolean
+  connections: ConnectionStatus[]
+  overallStatus: "LIVE" | "PARTIAL" | "OFFLINE"
+  summary: {
+    connected: number
+    total: number
+    status: string
+  }
+  timestamp: string
+}
+
 export function LiveDataIndicator() {
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus[]>([])
+  const [overallStatus, setOverallStatus] = useState<"LIVE" | "PARTIAL" | "OFFLINE" | "UNKNOWN">("UNKNOWN")
+  const [connections, setConnections] = useState<ConnectionStatus[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date())
 
   const checkConnections = async () => {
     setIsLoading(true)
     try {
+      console.log("🔍 Checking API connections...")
       const response = await fetch("/api/test-connection", {
         method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        cache: "no-cache",
       })
 
       if (response.ok) {
-        const data = await response.json()
-        setConnectionStatus(data.connections || [])
+        const data: ConnectionResponse = await response.json()
+        console.log("✅ Connection check response:", data)
+
+        setConnections(data.connections || [])
+        setOverallStatus(data.overallStatus || "UNKNOWN")
         setLastUpdate(new Date())
       } else {
-        console.error("Failed to check connections:", response.status)
-        setConnectionStatus([
-          {
-            service: "API Connection",
-            status: "error",
-            lastChecked: new Date().toISOString(),
-            error: `HTTP ${response.status}`,
-          },
-        ])
+        console.error("❌ Connection check failed:", response.status)
+        setOverallStatus("OFFLINE")
+        setConnections([])
       }
     } catch (error) {
-      console.error("Connection check failed:", error)
-      setConnectionStatus([
-        {
-          service: "API Connection",
-          status: "error",
-          lastChecked: new Date().toISOString(),
-          error: "Network error",
-        },
-      ])
+      console.error("❌ Connection check error:", error)
+      setOverallStatus("UNKNOWN")
+      setConnections([])
     } finally {
       setIsLoading(false)
     }
@@ -64,191 +88,248 @@ export function LiveDataIndicator() {
 
   useEffect(() => {
     checkConnections()
-    // Check connections every 5 minutes
-    const interval = setInterval(checkConnections, 5 * 60 * 1000)
+    const interval = setInterval(checkConnections, 30000) // Check every 30 seconds
     return () => clearInterval(interval)
   }, [])
 
-  const getOverallStatus = () => {
-    if (connectionStatus.length === 0) return "unknown"
-    if (connectionStatus.every((conn) => conn.status === "connected")) return "connected"
-    if (connectionStatus.some((conn) => conn.status === "connected")) return "partial"
-    return "disconnected"
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "LIVE":
+      case "connected":
+        return "bg-green-500 hover:bg-green-600"
+      case "PARTIAL":
+      case "partial":
+        return "bg-yellow-500 hover:bg-yellow-600"
+      case "OFFLINE":
+      case "disconnected":
+      case "error":
+        return "bg-red-500 hover:bg-red-600"
+      default:
+        return "bg-gray-500 hover:bg-gray-600"
+    }
   }
-
-  const overallStatus = getOverallStatus()
 
   const getStatusIcon = (status: string) => {
     switch (status) {
+      case "LIVE":
       case "connected":
-        return <CheckCircle className="h-3 w-3 text-green-600" />
+        return <Wifi className="w-4 h-4" />
+      case "PARTIAL":
+      case "partial":
+        return <Activity className="w-4 h-4" />
+      case "OFFLINE":
       case "disconnected":
-        return <XCircle className="h-3 w-3 text-red-600" />
       case "error":
-        return <AlertCircle className="h-3 w-3 text-red-600" />
+        return <WifiOff className="w-4 h-4" />
       default:
-        return <AlertCircle className="h-3 w-3 text-yellow-600" />
+        return <Clock className="w-4 h-4" />
     }
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "connected":
-        return "text-green-600 bg-green-50 border-green-200"
-      case "partial":
-        return "text-yellow-600 bg-yellow-50 border-yellow-200"
-      case "disconnected":
-        return "text-red-600 bg-red-50 border-red-200"
-      default:
-        return "text-gray-600 bg-gray-50 border-gray-200"
-    }
+  const getServiceIcon = (serviceName: string) => {
+    if (serviceName.includes("OpenAI")) return Brain
+    if (serviceName.includes("Finnhub")) return TrendingUp
+    if (serviceName.includes("Alpha")) return Activity
+    if (serviceName.includes("Upstash")) return Database
+    if (serviceName.includes("Quiver")) return Shield
+    return Activity
   }
 
-  const getMainIcon = () => {
-    switch (overallStatus) {
-      case "connected":
-        return <Wifi className="h-3 w-3" />
-      case "partial":
-        return <Activity className="h-3 w-3" />
-      case "disconnected":
-        return <WifiOff className="h-3 w-3" />
-      default:
-        return <AlertCircle className="h-3 w-3" />
-    }
-  }
-
-  const getStatusText = () => {
-    switch (overallStatus) {
-      case "connected":
-        return "LIVE"
-      case "partial":
-        return "PARTIAL"
-      case "disconnected":
-        return "OFFLINE"
-      default:
-        return "UNKNOWN"
-    }
-  }
+  const connectedServices = connections.filter((c) => c.status === "connected").length
+  const totalServices = connections.length
+  const connectionPercentage = totalServices > 0 ? (connectedServices / totalServices) * 100 : 0
 
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className={`${getStatusColor(overallStatus)} border`}>
-          {getMainIcon()}
-          <span className="ml-1 text-xs font-medium">{getStatusText()}</span>
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className={`relative ${getStatusColor(overallStatus)} text-white border-0 hover:opacity-90 transition-all`}
+        >
+          {isLoading ? (
+            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+          ) : (
+            <>
+              {getStatusIcon(overallStatus)}
+              <span className="ml-2 font-medium">{overallStatus}</span>
+              {overallStatus === "LIVE" && (
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+              )}
+            </>
+          )}
         </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-80" align="end">
-        <Card className="border-0 shadow-none">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <Database className="h-4 w-4" />
-                  Data Connection Status
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  {lastUpdate ? `Last checked: ${lastUpdate.toLocaleTimeString()}` : "Checking connections..."}
-                </CardDescription>
+      </DialogTrigger>
+
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Activity className="w-5 h-5" />
+            Live Data Connection Status
+          </DialogTitle>
+          <DialogDescription>Monitor your API connections and data provider status in real-time</DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-6">
+          {/* Overall Status Card */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">Overall Status</CardTitle>
+                <Badge className={`${getStatusColor(overallStatus)} text-white border-0`}>{overallStatus}</Badge>
               </div>
-              <Button variant="ghost" size="sm" onClick={checkConnections} disabled={isLoading} className="h-8 w-8 p-0">
-                <RefreshCw className={`h-3 w-3 ${isLoading ? "animate-spin" : ""}`} />
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {connectionStatus.length === 0 ? (
-              <div className="text-center py-4">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-300 mx-auto mb-2"></div>
-                <p className="text-xs text-muted-foreground">Checking connections...</p>
+              <CardDescription>
+                {connectedServices} of {totalServices} services connected
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Connection Health</span>
+                  <span>{Math.round(connectionPercentage)}%</span>
+                </div>
+                <Progress value={connectionPercentage} className="h-2" />
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">Last updated: {lastUpdate.toLocaleTimeString()}</p>
+            </CardContent>
+          </Card>
+
+          {/* Individual Service Status */}
+          <div className="space-y-3">
+            <h4 className="font-semibold">Service Details</h4>
+            {connections.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-300 mx-auto mb-4"></div>
+                <p className="text-sm text-muted-foreground">Checking connections...</p>
               </div>
             ) : (
-              <>
-                {connectionStatus.map((connection, index) => (
-                  <div key={index} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        {getStatusIcon(connection.status)}
-                        <span className="text-sm font-medium">{connection.service}</span>
+              <div className="grid gap-3">
+                {connections.map((connection, index) => {
+                  const IconComponent = getServiceIcon(connection.service)
+                  return (
+                    <Card key={index} className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-full ${getStatusColor(connection.status)} text-white`}>
+                            <IconComponent className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="font-medium">{connection.service}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {connection.service.includes("OpenAI") && "AI-powered stock analysis and recommendations"}
+                              {connection.service.includes("Finnhub") && "Real-time stock prices and company data"}
+                              {connection.service.includes("Alpha") && "Technical indicators and historical data"}
+                              {connection.service.includes("Upstash") && "Intelligent caching for cost optimization"}
+                              {connection.service.includes("Quiver") && "Government trading activity data"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <Badge
+                            variant="outline"
+                            className={`${getStatusColor(connection.status)} text-white border-0`}
+                          >
+                            {connection.status.toUpperCase()}
+                          </Badge>
+                          {connection.responseTime && (
+                            <p className="text-xs text-muted-foreground mt-1">{connection.responseTime}ms</p>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <Badge
-                          variant="outline"
-                          className={`text-xs ${
-                            connection.status === "connected"
-                              ? "text-green-600 border-green-200"
-                              : connection.status === "error"
-                                ? "text-red-600 border-red-200"
-                                : "text-yellow-600 border-yellow-200"
-                          }`}
-                        >
-                          {connection.status.toUpperCase()}
-                        </Badge>
-                      </div>
-                    </div>
-                    {connection.responseTime && (
-                      <div className="text-xs text-muted-foreground ml-5">
-                        Response time: {connection.responseTime}ms
-                      </div>
-                    )}
-                    {connection.error && <div className="text-xs text-red-600 ml-5">Error: {connection.error}</div>}
-                    {index < connectionStatus.length - 1 && <Separator />}
-                  </div>
-                ))}
-
-                <Separator />
-
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium">Overall Status:</span>
-                    <Badge className={getStatusColor(overallStatus)}>{getStatusText()}</Badge>
-                  </div>
-
-                  {overallStatus === "connected" && (
-                    <Alert className="border-green-200 bg-green-50">
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                      <AlertDescription className="text-green-800 text-xs">
-                        All data sources are connected. You're receiving live market data.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-
-                  {overallStatus === "partial" && (
-                    <Alert className="border-yellow-200 bg-yellow-50">
-                      <AlertCircle className="h-4 w-4 text-yellow-600" />
-                      <AlertDescription className="text-yellow-800 text-xs">
-                        Some data sources are unavailable. Analysis may use cached or fallback data.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-
-                  {overallStatus === "disconnected" && (
-                    <Alert className="border-red-200 bg-red-50">
-                      <XCircle className="h-4 w-4 text-red-600" />
-                      <AlertDescription className="text-red-800 text-xs">
-                        Data sources are offline. Please check your API configuration.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </div>
-
-                <Separator />
-
-                <div className="text-xs text-muted-foreground space-y-1">
-                  <div className="flex items-center gap-1">
-                    <Zap className="h-3 w-3" />
-                    <span>Live data updates every 15 minutes</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Database className="h-3 w-3" />
-                    <span>Cached data used when APIs are unavailable</span>
-                  </div>
-                </div>
-              </>
+                      {connection.error && (
+                        <Alert className="mt-3">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertDescription>{connection.error}</AlertDescription>
+                        </Alert>
+                      )}
+                    </Card>
+                  )
+                })}
+              </div>
             )}
-          </CardContent>
-        </Card>
-      </PopoverContent>
-    </Popover>
+          </div>
+
+          <Separator />
+
+          {/* Status Messages */}
+          <div className="space-y-3">
+            {overallStatus === "LIVE" && (
+              <Alert className="border-green-200 bg-green-50">
+                <CheckCircle className="h-4 w-4 text-green-600" />
+                <AlertDescription className="text-green-800">
+                  🎉 All systems operational! You're receiving live market data and AI analysis with intelligent
+                  caching.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {overallStatus === "PARTIAL" && (
+              <Alert className="border-yellow-200 bg-yellow-50">
+                <AlertCircle className="h-4 w-4 text-yellow-600" />
+                <AlertDescription className="text-yellow-800">
+                  ⚠️ Some services are unavailable. The system will use cached data and fallback providers where
+                  possible.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {overallStatus === "OFFLINE" && (
+              <Alert className="border-red-200 bg-red-50">
+                <WifiOff className="h-4 w-4 text-red-600" />
+                <AlertDescription className="text-red-800">
+                  🔴 Data sources are offline. Please check your API configuration in the .env.local file.
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+
+          {/* Benefits of Live Data */}
+          <div className="space-y-3">
+            <h4 className="font-semibold flex items-center gap-2">
+              <Zap className="w-4 h-4" />
+              System Features
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+              <div className="flex items-start gap-2">
+                <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
+                <div>
+                  <p className="font-medium">Real-time Analysis</p>
+                  <p className="text-muted-foreground">Current market prices and live data</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
+                <div>
+                  <p className="font-medium">AI-Powered Insights</p>
+                  <p className="text-muted-foreground">Advanced GPT-4 analysis with model selection</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
+                <div>
+                  <p className="font-medium">Cost Optimization</p>
+                  <p className="text-muted-foreground">Intelligent caching with Upstash Redis</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
+                <div>
+                  <p className="font-medium">Technical Indicators</p>
+                  <p className="text-muted-foreground">Professional-grade analysis tools</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-between items-center pt-4">
+            <Button variant="outline" onClick={checkConnections} disabled={isLoading}>
+              {isLoading ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+              Refresh Status
+            </Button>
+            <p className="text-xs text-muted-foreground">Auto-refresh every 30 seconds</p>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }

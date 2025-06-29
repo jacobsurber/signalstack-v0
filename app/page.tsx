@@ -16,7 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { ResultCard } from "@/components/result-card"
 import { LiveDataIndicator } from "@/components/live-data-indicator"
 import { generateStockPicks, analyzeStock } from "./analyzer/actions"
-import { TrendingUp, Zap, Target, BarChart3, Search, Sparkles, AlertCircle, CheckCircle, Clock } from "lucide-react"
+import { TrendingUp, Target, BarChart3, Search, Sparkles, AlertCircle, CheckCircle, Clock, Brain } from "lucide-react"
 
 interface StockPick {
   ticker: string
@@ -68,6 +68,7 @@ export default function StockPickerPage() {
   const [sectorPreference, setSectorPreference] = useState("all")
   const [discoveryMethod, setDiscoveryMethod] = useState("all")
   const [numberOfPicks, setNumberOfPicks] = useState("4")
+  const [selectedModel, setSelectedModel] = useState("gpt-4o")
 
   const [stockPicks, setStockPicks] = useState<StockPick[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
@@ -86,6 +87,7 @@ export default function StockPickerPage() {
     catalystType,
     sectorPreference,
     discoveryMethod,
+    model: selectedModel,
   }
 
   const handleGeneratePicks = async () => {
@@ -101,6 +103,7 @@ export default function StockPickerPage() {
         sectorPreference,
         discoveryMethod,
         numberOfPicks: Number.parseInt(numberOfPicks),
+        model: selectedModel,
       }
 
       console.log("Generating picks with configuration:", formData)
@@ -129,7 +132,7 @@ export default function StockPickerPage() {
 
     try {
       console.log("Analyzing stock:", analyzerTicker.toUpperCase())
-      const result = await analyzeStock(analyzerTicker.toUpperCase())
+      const result = await analyzeStock(analyzerTicker.toUpperCase(), selectedModel)
       console.log("Analysis result:", result)
       setAnalysisResult(result)
     } catch (err) {
@@ -238,6 +241,27 @@ export default function StockPickerPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
+                  <Label htmlFor="model">AI Model</Label>
+                  <Select value={selectedModel} onValueChange={setSelectedModel}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select AI model" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="gpt-4o">GPT-4o (Latest, Fastest)</SelectItem>
+                      <SelectItem value="gpt-4-turbo">GPT-4 Turbo (Balanced)</SelectItem>
+                      <SelectItem value="gpt-4">GPT-4 (Most Accurate)</SelectItem>
+                      <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo (Budget)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {selectedModel === "gpt-4o" && "Latest model with enhanced reasoning and speed"}
+                    {selectedModel === "gpt-4-turbo" && "Balanced performance and cost efficiency"}
+                    {selectedModel === "gpt-4" && "Most accurate analysis with detailed insights"}
+                    {selectedModel === "gpt-3.5-turbo" && "Cost-effective option for basic analysis"}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="timeframe">Investment Timeframe</Label>
                   <Select value={timeframe} onValueChange={setTimeframe}>
                     <SelectTrigger>
@@ -339,8 +363,8 @@ export default function StockPickerPage() {
                     </>
                   ) : (
                     <>
-                      <Zap className="mr-2 h-4 w-4" />
-                      Generate AI Stock Picks
+                      <Brain className="mr-2 h-4 w-4" />
+                      Generate AI Stock Picks ({selectedModel})
                     </>
                   )}
                 </Button>
@@ -383,7 +407,7 @@ export default function StockPickerPage() {
                   ) : (
                     <>
                       <BarChart3 className="mr-2 h-4 w-4" />
-                      Analyze Stock
+                      Analyze Stock ({selectedModel})
                     </>
                   )}
                 </Button>

@@ -46,71 +46,7 @@ interface AnalysisResult {
   timestamp?: string
 }
 
-// Enhanced stock discovery with comprehensive analysis
-const DISCOVERY_PROMPTS = {
-  "emerging-growth": `Focus on emerging growth companies with:
-- Revenue growth >25% YoY
-- Market cap $500M-$10B
-- Strong competitive moats
-- Expanding addressable markets
-- Recent positive catalysts`,
-
-  "international-plays": `Focus on international opportunities:
-- ADRs of strong foreign companies
-- Currency-advantaged plays
-- Emerging market leaders
-- Global expansion stories
-- Geopolitical beneficiaries`,
-
-  "sector-rotation": `Focus on sector rotation opportunities:
-- Sectors showing relative strength
-- Cyclical turning points
-- Policy beneficiaries
-- Supply/demand imbalances
-- Institutional rotation patterns`,
-
-  "thematic-plays": `Focus on thematic investment opportunities:
-- AI/ML transformation
-- Energy transition
-- Demographics shifts
-- Infrastructure modernization
-- Digital transformation`,
-
-  "undervalued-gems": `Focus on undervalued opportunities:
-- P/E ratios below sector average
-- Strong balance sheets
-- Hidden assets or catalysts
-- Temporary headwinds resolving
-- Management changes or activism`,
-
-  all: `Comprehensive analysis across all discovery methods:
-- Emerging growth opportunities
-- International plays and ADRs
-- Sector rotation beneficiaries
-- Thematic investment trends
-- Undervalued gems with catalysts`,
-}
-
-const CATALYST_PROMPTS = {
-  technical: "Focus on technical analysis signals: breakouts, momentum, volume patterns, support/resistance levels",
-  earnings: "Focus on earnings-related catalysts: upcoming reports, guidance revisions, estimate changes",
-  "gov-trades": "Focus on government trading activity: congressional purchases, insider activity, regulatory changes",
-  "sector-momentum": "Focus on sector momentum: relative strength, rotation patterns, industry trends",
-  all: "Consider all catalyst types: technical, fundamental, government activity, and sector dynamics",
-}
-
-const SECTOR_PROMPTS = {
-  tech: "Technology sector focus: software, semiconductors, cloud computing, AI/ML",
-  energy: "Energy sector focus: oil & gas, renewables, utilities, energy infrastructure",
-  financials: "Financial sector focus: banks, insurance, fintech, payment processors",
-  biotech: "Biotechnology focus: pharmaceuticals, medical devices, healthcare innovation",
-  healthcare: "Healthcare focus: hospitals, managed care, medical technology, services",
-  consumer: "Consumer focus: retail, restaurants, consumer goods, e-commerce",
-  industrials: "Industrial focus: manufacturing, aerospace, defense, infrastructure",
-  all: "Diversified across all major sectors for balanced exposure",
-}
-
-// Enhanced quantitative trading engine
+// Enhanced quantitative trading engine with Upstash caching
 class QuantitativeTradingEngine {
   private cache: IntelligentCache
   private dataProvider: MarketDataAggregator
@@ -119,7 +55,7 @@ class QuantitativeTradingEngine {
     try {
       this.cache = new IntelligentCache()
       this.dataProvider = new MarketDataAggregator()
-      console.log("✅ QuantitativeTradingEngine initialized successfully")
+      console.log("✅ QuantitativeTradingEngine initialized with Upstash caching")
     } catch (error) {
       console.error("❌ Failed to initialize QuantitativeTradingEngine:", error)
       throw error
@@ -127,25 +63,26 @@ class QuantitativeTradingEngine {
   }
 
   async generateAdvancedPicks(criteria: any, model: string): Promise<StockPick[]> {
-    console.log("🚀 Starting advanced stock discovery process...")
+    console.log(`🚀 Starting advanced stock discovery with ${model}...`)
 
-    // Check cache first
-    const cacheKey = this.cache.generateAIKey(criteria, "discovery")
+    // Generate intelligent cache key based on criteria and model
+    const cacheKey = this.cache.generateAIKey(criteria, "discovery") + `:${model}`
+
+    // Check Upstash cache first for cost optimization
     const cachedResult = await this.cache.getAIResponse(cacheKey)
-
     if (cachedResult) {
-      console.log("⚡ Using cached analysis result")
+      console.log("⚡ Using cached analysis result from Upstash - saving OpenAI costs!")
       return cachedResult.picks || []
     }
 
     try {
-      // Get market context
+      // Get market context for enhanced analysis
       const marketContext = await this.getMarketContext()
 
-      // Generate comprehensive analysis prompt
+      // Build comprehensive analysis prompt
       const analysisPrompt = this.buildAdvancedAnalysisPrompt(criteria, marketContext)
 
-      console.log(`🤖 Generating analysis with ${model}...`)
+      console.log(`🤖 Generating fresh analysis with ${model}...`)
 
       const result = await generateText({
         model: openai(model),
@@ -159,11 +96,22 @@ class QuantitativeTradingEngine {
       // Parse and validate the response
       const picks = await this.parseAndValidateResponse(result.text, criteria)
 
-      // Cache the successful result
-      await this.cache.cacheAIResponse(cacheKey, { picks, modelUsed: model })
+      // Cache the successful result in Upstash for 4 hours
+      await this.cache.cacheAIResponse(
+        cacheKey,
+        {
+          picks,
+          modelUsed: model,
+          criteria,
+          generatedAt: new Date().toISOString(),
+        },
+        4,
+      )
 
-      // Store success pattern for learning
+      // Store success pattern for AI learning
       await this.cache.storeSuccessPattern(criteria, picks)
+
+      console.log(`💾 Cached result in Upstash for future cost optimization`)
 
       return picks
     } catch (error) {
@@ -191,11 +139,35 @@ class QuantitativeTradingEngine {
   }
 
   private buildAdvancedAnalysisPrompt(criteria: any, marketContext: any): string {
+    const discoveryPrompts = {
+      all: "Comprehensive analysis across all discovery methods",
+      momentum: "Focus on momentum and technical breakouts",
+      value: "Focus on undervalued opportunities with strong fundamentals",
+      growth: "Focus on high-growth companies with expansion potential",
+      contrarian: "Focus on contrarian plays and turnaround stories",
+    }
+
+    const catalystPrompts = {
+      all: "Consider all catalyst types: technical, fundamental, government activity, and sector dynamics",
+      technical: "Focus on technical analysis signals: breakouts, momentum, volume patterns",
+      earnings: "Focus on earnings-related catalysts: upcoming reports, guidance revisions",
+      government: "Focus on government trading activity: congressional purchases, insider activity",
+      sector: "Focus on sector momentum: relative strength, rotation patterns",
+    }
+
+    const sectorPrompts = {
+      all: "Diversified across all major sectors for balanced exposure",
+      technology: "Technology sector focus: software, semiconductors, cloud computing, AI/ML",
+      healthcare: "Healthcare focus: pharmaceuticals, biotechnology, medical devices",
+      finance: "Financial sector focus: banks, insurance, fintech, payment processors",
+      energy: "Energy sector focus: oil & gas, renewables, utilities, infrastructure",
+      consumer: "Consumer focus: retail, restaurants, consumer goods, e-commerce",
+    }
+
     const discoveryPrompt =
-      DISCOVERY_PROMPTS[criteria.discoveryMethod as keyof typeof DISCOVERY_PROMPTS] || DISCOVERY_PROMPTS.all
-    const catalystPrompt =
-      CATALYST_PROMPTS[criteria.catalystType as keyof typeof CATALYST_PROMPTS] || CATALYST_PROMPTS.all
-    const sectorPrompt = SECTOR_PROMPTS[criteria.sectorPreference as keyof typeof SECTOR_PROMPTS] || SECTOR_PROMPTS.all
+      discoveryPrompts[criteria.discoveryMethod as keyof typeof discoveryPrompts] || discoveryPrompts.all
+    const catalystPrompt = catalystPrompts[criteria.catalystType as keyof typeof catalystPrompts] || catalystPrompts.all
+    const sectorPrompt = sectorPrompts[criteria.sectorPreference as keyof typeof sectorPrompts] || sectorPrompts.all
 
     const govTradesContext =
       marketContext.governmentTrades.length > 0
@@ -220,7 +192,6 @@ ${govTradesContext}ANALYSIS REQUIREMENTS:
 
 1. STOCK DISCOVERY PROCESS:
    - Screen 2000+ stocks across major indices (S&P 500, NASDAQ, Russell 2000)
-   - Include international ADRs and emerging market leaders
    - Apply quantitative filters based on the discovery method
    - Consider market cap ranges: small ($300M-2B), mid ($2B-10B), large ($10B+)
 
@@ -238,7 +209,6 @@ ${govTradesContext}ANALYSIS REQUIREMENTS:
 4. PROBABILITY ASSESSMENT:
    - Assign probability of success (0-100%) based on confluence of factors
    - Higher probabilities require multiple confirming signals
-   - Account for market regime and macro environment
 
 RESPONSE FORMAT (JSON):
 {
@@ -251,7 +221,7 @@ RESPONSE FORMAT (JSON):
       "stopLossPrice": 0.00,
       "riskRewardRatio": 0.0,
       "timeframe": "${criteria.timeframe}",
-      "rationale": "Detailed multi-paragraph analysis explaining the investment thesis, key catalysts, technical setup, and risk factors",
+      "rationale": "Detailed analysis explaining the investment thesis, key catalysts, technical setup, and risk factors",
       "tags": ["sector", "catalyst-type", "market-cap", "risk-level"],
       "probabilityOfSuccess": 0,
       "marketCapBillion": 0.0,
@@ -270,7 +240,7 @@ QUALITY STANDARDS:
 - Risk-reward ratios must meet the specified criteria
 - Probability assessments must be conservative and well-justified
 
-Focus on actionable, high-probability opportunities with clear catalysts and well-defined risk parameters. Prioritize stocks with strong fundamentals, technical confirmation, and upcoming catalysts that align with the specified criteria.`
+Focus on actionable, high-probability opportunities with clear catalysts and well-defined risk parameters.`
   }
 
   private async parseAndValidateResponse(responseText: string, criteria: any): Promise<StockPick[]> {
@@ -296,8 +266,6 @@ Focus on actionable, high-probability opportunities with clear catalysts and wel
 
       for (const pick of parsed.picks) {
         try {
-          console.log(`🔍 Validating ${pick.ticker}...`)
-
           // Basic validation
           if (!pick.ticker || !pick.companyName || !pick.entryPrice || !pick.targetPrice) {
             console.warn(`⚠️ Skipping ${pick.ticker}: missing required fields`)
@@ -317,7 +285,6 @@ Focus on actionable, high-probability opportunities with clear catalysts and wel
             const quickQuote = await this.dataProvider.getQuickQuote(pick.ticker)
             currentPrice = quickQuote.price
 
-            // Update company name if we got a better one
             if (quickQuote.companyName && quickQuote.companyName !== `${pick.ticker} Corporation`) {
               pick.companyName = quickQuote.companyName
             }
@@ -325,35 +292,18 @@ Focus on actionable, high-probability opportunities with clear catalysts and wel
             console.warn(`⚠️ Could not get current price for ${pick.ticker}, using AI estimate`)
           }
 
-          // Validate price relationships
+          // Validate price relationships and risk-reward ratios
           if (pick.targetPrice <= pick.entryPrice) {
-            console.warn(`⚠️ Adjusting target price for ${pick.ticker}: target must be > entry`)
             pick.targetPrice = pick.entryPrice * 1.15 // 15% minimum target
           }
 
           if (pick.stopLossPrice >= pick.entryPrice) {
-            console.warn(`⚠️ Adjusting stop loss for ${pick.ticker}: stop must be < entry`)
             pick.stopLossPrice = pick.entryPrice * 0.92 // 8% maximum loss
           }
 
-          // Calculate and validate risk-reward ratio
           const potentialGain = pick.targetPrice - pick.entryPrice
           const potentialLoss = pick.entryPrice - pick.stopLossPrice
-          const calculatedRR = potentialGain / potentialLoss
-
-          pick.riskRewardRatio = Math.round(calculatedRR * 100) / 100
-
-          // Validate risk-reward meets criteria
-          const minRR = criteria.riskAppetite === "aggressive" ? 2.0 : criteria.riskAppetite === "moderate" ? 1.5 : 1.2
-
-          if (pick.riskRewardRatio < minRR) {
-            console.warn(
-              `⚠️ Adjusting prices for ${pick.ticker}: R/R ratio too low (${pick.riskRewardRatio} < ${minRR})`,
-            )
-            // Adjust target price to meet minimum R/R
-            pick.targetPrice = pick.entryPrice + potentialLoss * minRR
-            pick.riskRewardRatio = minRR
-          }
+          pick.riskRewardRatio = Math.round((potentialGain / potentialLoss) * 100) / 100
 
           // Update entry price to current market price
           pick.entryPrice = currentPrice
@@ -395,6 +345,7 @@ export async function generateStockPicks(criteria: {
   sectorPreference: string
   discoveryMethod: string
   numberOfPicks: number
+  model: string
 }): Promise<StockPick[]> {
   console.log("🚀 Generate picks server action called")
 
@@ -406,17 +357,17 @@ export async function generateStockPicks(criteria: {
 
     console.log("📋 Request criteria:", criteria)
 
-    const { timeframe, riskAppetite, catalystType, sectorPreference, discoveryMethod, numberOfPicks } = criteria
+    const { timeframe, riskAppetite, catalystType, sectorPreference, discoveryMethod, model } = criteria
 
     // Validate required fields
     if (!timeframe || !riskAppetite || !catalystType || !sectorPreference || !discoveryMethod) {
       throw new Error("Missing required fields")
     }
 
-    // Initialize the trading engine
+    // Initialize the trading engine with Upstash caching
     const engine = new QuantitativeTradingEngine()
 
-    // Generate advanced picks
+    // Generate advanced picks with intelligent caching
     const picks = await engine.generateAdvancedPicks(
       {
         timeframe,
@@ -425,10 +376,10 @@ export async function generateStockPicks(criteria: {
         sectorPreference,
         discoveryMethod,
       },
-      "gpt-4o",
+      model || "gpt-4o",
     )
 
-    console.log(`✅ Successfully generated ${picks.length} picks`)
+    console.log(`✅ Successfully generated ${picks.length} picks using ${model}`)
 
     return picks
   } catch (error) {
@@ -437,7 +388,7 @@ export async function generateStockPicks(criteria: {
   }
 }
 
-export async function analyzeStock(ticker: string): Promise<AnalysisResult> {
+export async function analyzeStock(ticker: string, model = "gpt-4o"): Promise<AnalysisResult> {
   console.log("🚀 Analyze stock server action called")
 
   try {
@@ -446,10 +397,20 @@ export async function analyzeStock(ticker: string): Promise<AnalysisResult> {
       throw new Error("OpenAI API key not configured. Please add your API key to continue.")
     }
 
-    console.log("📋 Analyzing ticker:", ticker)
+    console.log(`📋 Analyzing ${ticker} with ${model}...`)
 
-    // Initialize data provider
+    // Initialize cache and data provider
+    const cache = new IntelligentCache()
     const dataProvider = new MarketDataAggregator()
+
+    // Check cache first for cost optimization
+    const cacheKey = `analysis:${ticker}:${model}`
+    const cachedResult = await cache.getAIResponse(cacheKey)
+
+    if (cachedResult) {
+      console.log("⚡ Using cached analysis from Upstash - saving OpenAI costs!")
+      return cachedResult
+    }
 
     // Get comprehensive stock data
     const stockData = await dataProvider.getComprehensiveStockData(ticker)
@@ -473,8 +434,6 @@ ANALYSIS REQUIREMENTS:
 4. Investment timeframe recommendation
 5. Key metrics and volatility assessment
 
-Provide realistic and actionable analysis based on current market conditions.
-
 RESPONSE FORMAT (JSON):
 {
   "recommendation": "BUY|SELL|HOLD",
@@ -493,7 +452,7 @@ RESPONSE FORMAT (JSON):
 }`
 
     const result = await generateText({
-      model: openai("gpt-4o"),
+      model: openai(model),
       prompt: analysisPrompt,
       temperature: 0.3,
       maxTokens: 2000,
@@ -507,7 +466,7 @@ RESPONSE FORMAT (JSON):
 
     const analysis = JSON.parse(jsonMatch[0])
 
-    // Return structured analysis result
+    // Create structured analysis result
     const analysisResult: AnalysisResult = {
       ticker: ticker.toUpperCase(),
       companyName: stockData.profile.name,
@@ -529,7 +488,10 @@ RESPONSE FORMAT (JSON):
       timestamp: new Date().toISOString(),
     }
 
-    console.log(`✅ Successfully analyzed ${ticker}`)
+    // Cache the result for 15 minutes
+    await cache.cacheAIResponse(cacheKey, analysisResult, 0.25)
+
+    console.log(`✅ Successfully analyzed ${ticker} with ${model} and cached result`)
     return analysisResult
   } catch (error) {
     console.error("❌ Analyze stock server action error:", error)
