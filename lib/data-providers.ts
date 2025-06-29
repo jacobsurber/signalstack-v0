@@ -95,7 +95,6 @@ export class FinnhubProvider {
       const response = await fetch(url, {
         method: "GET",
         headers: { Accept: "application/json" },
-        timeout: 15000, // Increased timeout to 15 seconds
       })
 
       if (!response.ok) {
@@ -255,7 +254,6 @@ export class FinnhubProvider {
       const profileResponse = await fetch(profileUrl, {
         method: "GET",
         headers: { Accept: "application/json" },
-        timeout: 10000,
       })
 
       if (profileResponse.ok) {
@@ -302,7 +300,6 @@ export class FinnhubProvider {
         headers: {
           Accept: "application/json",
         },
-        timeout: 15000, // Increased timeout
       })
 
       console.log(`Response status: ${response.status}`)
@@ -803,24 +800,52 @@ export class QuiverQuantProvider {
 
 // Enhanced data aggregator with robust stock validation
 export class MarketDataAggregator {
-  private finnhub: FinnhubProvider
+  private finnhub: FinnhubProvider | null = null
   private alphaVantage: AlphaVantageProvider | null = null
   private quiverQuant: QuiverQuantProvider | null = null
 
   constructor() {
-    this.finnhub = new FinnhubProvider()
-
-    // Optional providers
+    // Try to initialize providers, but don't fail if API keys are missing
     try {
-      this.alphaVantage = new AlphaVantageProvider()
+      if (
+        process.env.FINNHUB_API_KEY &&
+        process.env.FINNHUB_API_KEY.trim() !== "" &&
+        !process.env.FINNHUB_API_KEY.includes("your_")
+      ) {
+        this.finnhub = new FinnhubProvider()
+      } else {
+        console.log("FINNHUB_API_KEY not configured, skipping Finnhub provider")
+      }
     } catch (error) {
-      console.log("Alpha Vantage not configured, skipping technical indicators")
+      console.log("Finnhub provider initialization failed:", error)
     }
 
     try {
-      this.quiverQuant = new QuiverQuantProvider()
+      if (
+        process.env.ALPHA_VANTAGE_API_KEY &&
+        process.env.ALPHA_VANTAGE_API_KEY.trim() !== "" &&
+        !process.env.ALPHA_VANTAGE_API_KEY.includes("your_")
+      ) {
+        this.alphaVantage = new AlphaVantageProvider()
+      } else {
+        console.log("ALPHA_VANTAGE_API_KEY not configured, skipping Alpha Vantage provider")
+      }
     } catch (error) {
-      console.log("Quiver Quant not configured, skipping government trades")
+      console.log("Alpha Vantage provider initialization failed:", error)
+    }
+
+    try {
+      if (
+        process.env.QUIVER_QUANT_API_KEY &&
+        process.env.QUIVER_QUANT_API_KEY.trim() !== "" &&
+        !process.env.QUIVER_QUANT_API_KEY.includes("your_")
+      ) {
+        this.quiverQuant = new QuiverQuantProvider()
+      } else {
+        console.log("QUIVER_QUANT_API_KEY not configured, skipping Quiver Quant provider")
+      }
+    } catch (error) {
+      console.log("Quiver Quant provider initialization failed:", error)
     }
   }
 
@@ -829,25 +854,33 @@ export class MarketDataAggregator {
     try {
       console.log(`🔍 Comprehensive validation for ${symbol}...`)
 
+      if (!this.finnhub) {
+        console.log(`⚠️ ${symbol}: No Finnhub provider available, allowing with fallback`)
+        return true
+      }
+
       // Use Finnhub's enhanced validation method
       const isValid = await this.finnhub.validateStock(symbol)
 
       if (!isValid) {
         console.log(`⚠️ ${symbol}: Failed Finnhub validation, but allowing for fallback handling`)
-        // Don't immediately reject - let the quote method handle it with fallbacks
-        return true // Changed from false to true to allow fallback handling
+        return true
       }
 
       console.log(`✅ ${symbol}: Passed all validation checks`)
       return true
     } catch (error) {
       console.log(`⚠️ ${symbol}: Validation error - ${safeStringify(error)}, allowing with fallback`)
-      return true // Allow with fallback instead of rejecting
+      return true
     }
   }
 
   async getComprehensiveStockData(symbol: string) {
     console.log(`📊 Getting comprehensive data for ${symbol}...`)
+
+    if (!this.finnhub) {
+      throw new Error("No data providers configured. Please set up API keys.")
+    }
 
     try {
       // First validate the stock
@@ -867,7 +900,6 @@ export class MarketDataAggregator {
         console.log(`✅ Profile retrieved for ${symbol}: ${profile.name}`)
       } catch (profileError) {
         console.warn(`Profile failed for ${symbol}, but continuing with defaults: ${safeStringify(profileError)}`)
-        // The getCompanyProfile method now handles errors internally and returns defaults
         profile = await this.finnhub.getCompanyProfile(symbol)
       }
 
@@ -898,7 +930,7 @@ export class MarketDataAggregator {
           price: quote.currentPrice,
           change: quote.change,
           changePercent: quote.changePercent,
-          volume: 0, // Finnhub basic quote doesn't include volume
+          volume: 0,
           lastUpdated: new Date().toISOString(),
         },
         profile: {
@@ -916,11 +948,6 @@ export class MarketDataAggregator {
       }
 
       console.log(`✅ ${symbol}: Comprehensive data retrieved successfully`)
-      console.log(`   Price: $${result.quote.price}`)
-      console.log(`   Company: ${result.profile.name}`)
-      console.log(`   Market Cap: $${(result.profile.marketCap / 1e9).toFixed(1)}B`)
-      console.log(`   Sector: ${result.profile.sector}`)
-
       return result
     } catch (error) {
       console.error(`❌ Failed to get comprehensive data for ${symbol}: ${safeStringify(error)}`)
@@ -931,7 +958,17 @@ export class MarketDataAggregator {
   async getMarketOverview() {
     try {
       console.log(`📊 Getting market overview...`)
-      const govTrades = (await this.quiverQuant?.getGovernmentTrades()) || []
+
+      if (!this.quiverQuant) {
+        console.log("No Quiver Quant provider available, returning empty trades")
+        return {
+          governmentTrades: [],
+          lastUpdated: new Date().toISOString(),
+          error: "Government trades require Quiver Quant API key",
+        }
+      }
+
+      const govTrades = await this.quiverQuant.getGovernmentTrades()
 
       return {
         governmentTrades: govTrades,
@@ -948,10 +985,13 @@ export class MarketDataAggregator {
   }
 
   async getQuickQuote(symbol: string): Promise<{ price: number; companyName?: string }> {
+    if (!this.finnhub) {
+      throw new Error("No data providers configured. Please set up API keys.")
+    }
+
     try {
       console.log(`📊 Getting quick quote for ${symbol}...`)
 
-      // Validate first
       const isValid = await this.validateStock(symbol)
       if (!isValid) {
         throw new Error(`Stock ${symbol} is invalid or delisted`)

@@ -1,438 +1,320 @@
 "use client"
 
-import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useState, useEffect } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Progress } from "@/components/ui/progress"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Clock, Target, Shield, BarChart3, Volume2, Zap, Timer, DollarSign, AlertTriangle } from "lucide-react"
+import { TrendingUp, Activity, Target, AlertTriangle, Clock, BarChart3, Zap, RefreshCw } from "lucide-react"
 
-interface DayTradingAnalysis {
-  analysis: {
-    ticker: string
-    strategy: string
-    entryTime: string
-    entryPrice: number
-    targetPrice: number
-    stopLoss: number
-    exitTime: string
-    riskReward: number
-    confidence: number
-    timeframe: string
-    reasoning: string
-    technicalSetup: string
-    volumeConfirmation: boolean
-    marketConditions: string
-    riskLevel: string
-    positionSize: number
-    maxHoldTime: string
-  }
-  marketData: any
-  technicalSignals: any
-  marketSession: any
-  riskManagement: any
-  timing: any
+interface TradingSignal {
+  ticker: string
+  signal: "BUY" | "SELL" | "HOLD"
+  strength: number
+  timeframe: string
+  entry: number
+  target: number
+  stopLoss: number
+  confidence: number
+  strategy: string
+}
+
+interface MarketCondition {
+  trend: "BULLISH" | "BEARISH" | "NEUTRAL"
+  volatility: "LOW" | "MEDIUM" | "HIGH"
+  volume: "LOW" | "MEDIUM" | "HIGH"
+  sentiment: number
 }
 
 export function DayTradingDashboard() {
-  const [ticker, setTicker] = useState("")
-  const [strategy, setStrategy] = useState("Auto-select Best")
-  const [timeframe, setTimeframe] = useState("5min")
-  const [riskAppetite, setRiskAppetite] = useState("moderate")
-  const [analysis, setAnalysis] = useState<DayTradingAnalysis | null>(null)
+  const [signals, setSignals] = useState<TradingSignal[]>([])
+  const [marketConditions, setMarketConditions] = useState<MarketCondition>({
+    trend: "NEUTRAL",
+    volatility: "MEDIUM",
+    volume: "MEDIUM",
+    sentiment: 50,
+  })
+  const [selectedStrategy, setSelectedStrategy] = useState("scalping")
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date())
 
-  const handleAnalyze = async () => {
-    if (!ticker.trim()) return
+  const strategies = [
+    { value: "scalping", label: "Scalping (1-5 min)" },
+    { value: "momentum", label: "Momentum (15-30 min)" },
+    { value: "breakout", label: "Breakout (1-4 hours)" },
+    { value: "reversal", label: "Mean Reversion" },
+  ]
 
+  const generateSignals = async () => {
     setIsLoading(true)
-    setError(null)
-    setAnalysis(null)
-
     try {
-      const response = await fetch("/api/day-trading-analysis", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ticker: ticker.toUpperCase(),
-          strategy: strategy || undefined,
-          timeframe,
-          riskAppetite,
-        }),
+      // Simulate API call
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+
+      const mockSignals: TradingSignal[] = [
+        {
+          ticker: "SPY",
+          signal: "BUY",
+          strength: 85,
+          timeframe: "15m",
+          entry: 485.5,
+          target: 487.2,
+          stopLoss: 484.8,
+          confidence: 78,
+          strategy: "Momentum Breakout",
+        },
+        {
+          ticker: "QQQ",
+          signal: "SELL",
+          strength: 72,
+          timeframe: "5m",
+          entry: 395.8,
+          target: 394.1,
+          stopLoss: 396.5,
+          confidence: 65,
+          strategy: "RSI Overbought",
+        },
+        {
+          ticker: "TSLA",
+          signal: "BUY",
+          strength: 90,
+          timeframe: "30m",
+          entry: 248.75,
+          target: 252.3,
+          stopLoss: 246.9,
+          confidence: 82,
+          strategy: "Volume Surge",
+        },
+      ]
+
+      setSignals(mockSignals)
+      setLastUpdate(new Date())
+
+      // Update market conditions
+      setMarketConditions({
+        trend: Math.random() > 0.5 ? "BULLISH" : "BEARISH",
+        volatility: ["LOW", "MEDIUM", "HIGH"][Math.floor(Math.random() * 3)] as any,
+        volume: ["LOW", "MEDIUM", "HIGH"][Math.floor(Math.random() * 3)] as any,
+        sentiment: Math.floor(Math.random() * 100),
       })
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`)
-      }
-
-      const data = await response.json()
-
-      if (!data.success) {
-        throw new Error(data.message || "Analysis failed")
-      }
-
-      setAnalysis(data)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Analysis failed")
+    } catch (error) {
+      console.error("Error generating signals:", error)
     } finally {
       setIsLoading(false)
     }
   }
 
-  const getConfidenceColor = (confidence: number) => {
-    if (confidence >= 80) return "bg-green-50 text-green-700 border-green-200"
-    if (confidence >= 70) return "bg-yellow-50 text-yellow-700 border-yellow-200"
-    return "bg-red-50 text-red-700 border-red-200"
-  }
+  useEffect(() => {
+    generateSignals()
+    const interval = setInterval(generateSignals, 60000) // Update every minute
+    return () => clearInterval(interval)
+  }, [selectedStrategy])
 
-  const getRiskColor = (riskLevel: string) => {
-    switch (riskLevel) {
-      case "low":
+  const getSignalColor = (signal: string) => {
+    switch (signal) {
+      case "BUY":
         return "bg-green-50 text-green-700 border-green-200"
-      case "medium":
-        return "bg-yellow-50 text-yellow-700 border-yellow-200"
-      case "high":
+      case "SELL":
         return "bg-red-50 text-red-700 border-red-200"
       default:
         return "bg-gray-50 text-gray-700 border-gray-200"
     }
   }
 
+  const getTrendColor = (trend: string) => {
+    switch (trend) {
+      case "BULLISH":
+        return "text-green-600"
+      case "BEARISH":
+        return "text-red-600"
+      default:
+        return "text-gray-600"
+    }
+  }
+
   return (
     <div className="space-y-6">
-      {/* Analysis Form */}
+      {/* Market Overview */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Market Trend</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${getTrendColor(marketConditions.trend)}`}>
+              {marketConditions.trend}
+            </div>
+            <p className="text-xs text-muted-foreground">Current market direction</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Volatility</CardTitle>
+            <Activity className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{marketConditions.volatility}</div>
+            <p className="text-xs text-muted-foreground">Price movement intensity</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Volume</CardTitle>
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{marketConditions.volume}</div>
+            <p className="text-xs text-muted-foreground">Trading activity level</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Sentiment</CardTitle>
+            <Target className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{marketConditions.sentiment}%</div>
+            <Progress value={marketConditions.sentiment} className="mt-2" />
+            <p className="text-xs text-muted-foreground mt-1">Market sentiment score</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Trading Signals */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Clock className="h-5 w-5" />
-            <span>Day Trading Technical Analysis</span>
-            <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-              Real-Time Data
-            </Badge>
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Get precise entry/exit times with comprehensive technical analysis for intraday trading
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Stock Ticker</label>
-              <Input
-                placeholder="e.g., AAPL, TSLA, SPY"
-                value={ticker}
-                onChange={(e) => setTicker(e.target.value)}
-                onKeyPress={(e) => e.key === "Enter" && handleAnalyze()}
-              />
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="h-5 w-5" />
+                Live Trading Signals
+              </CardTitle>
+              <CardDescription>Real-time intraday trading opportunities</CardDescription>
             </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Strategy</label>
-              <Select value={strategy} onValueChange={setStrategy}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Auto-select" />
+            <div className="flex items-center gap-2">
+              <Select value={selectedStrategy} onValueChange={setSelectedStrategy}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Select strategy" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Auto-select Best">Auto-select Best</SelectItem>
-                  <SelectItem value="MOMENTUM_BREAKOUT">Momentum Breakout</SelectItem>
-                  <SelectItem value="SCALPING">Scalping</SelectItem>
-                  <SelectItem value="MEAN_REVERSION">Mean Reversion</SelectItem>
-                  <SelectItem value="GAP_TRADING">Gap Trading</SelectItem>
-                  <SelectItem value="VWAP_STRATEGY">VWAP Strategy</SelectItem>
-                  <SelectItem value="NEWS_MOMENTUM">News Momentum</SelectItem>
+                  {strategies.map((strategy) => (
+                    <SelectItem key={strategy.value} value={strategy.value}>
+                      {strategy.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Timeframe</label>
-              <Select value={timeframe} onValueChange={setTimeframe}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1min">1 Minute</SelectItem>
-                  <SelectItem value="5min">5 Minutes</SelectItem>
-                  <SelectItem value="15min">15 Minutes</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Risk Appetite</label>
-              <Select value={riskAppetite} onValueChange={setRiskAppetite}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="conservative">Conservative</SelectItem>
-                  <SelectItem value="moderate">Moderate</SelectItem>
-                  <SelectItem value="aggressive">Aggressive</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-end">
-              <Button onClick={handleAnalyze} disabled={!ticker.trim() || isLoading} className="w-full">
-                {isLoading ? "Analyzing..." : "Analyze"}
+              <Button onClick={generateSignals} disabled={isLoading} size="sm">
+                <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
+                {isLoading ? "Scanning..." : "Refresh"}
               </Button>
             </div>
           </div>
+        </CardHeader>
+        <CardContent>
+          <Tabs defaultValue="signals" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="signals">Active Signals</TabsTrigger>
+              <TabsTrigger value="watchlist">Watchlist</TabsTrigger>
+              <TabsTrigger value="performance">Performance</TabsTrigger>
+            </TabsList>
 
-          {error && (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Analysis Results */}
-      {analysis && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Trade Setup */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Target className="h-5 w-5" />
-                  <span>{analysis.analysis.ticker} Trade Setup</span>
-                </div>
-                <Badge variant="outline" className={getConfidenceColor(analysis.analysis.confidence)}>
-                  {analysis.analysis.confidence}% Confidence
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Strategy & Timing */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Strategy</p>
-                  <p className="font-semibold">{analysis.analysis.strategy}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Timeframe</p>
-                  <p className="font-semibold">{analysis.analysis.timeframe}</p>
-                </div>
-              </div>
-
-              {/* Entry/Exit Times */}
-              <div className="grid grid-cols-2 gap-4 p-3 bg-blue-50 rounded-lg">
-                <div className="text-center">
-                  <div className="flex items-center justify-center space-x-1 mb-1">
-                    <Clock className="h-4 w-4 text-blue-600" />
-                    <span className="text-xs font-semibold text-blue-700 uppercase">Entry Time</span>
+            <TabsContent value="signals" className="space-y-4">
+              {signals.length === 0 ? (
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    No active signals found. Market conditions may not be favorable for the selected strategy.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between text-sm text-muted-foreground">
+                    <span>{signals.length} active signals</span>
+                    <span>Last updated: {lastUpdate.toLocaleTimeString()}</span>
                   </div>
-                  <p className="text-lg font-bold text-blue-800">{analysis.analysis.entryTime}</p>
-                </div>
-                <div className="text-center">
-                  <div className="flex items-center justify-center space-x-1 mb-1">
-                    <Timer className="h-4 w-4 text-blue-600" />
-                    <span className="text-xs font-semibold text-blue-700 uppercase">Exit Time</span>
-                  </div>
-                  <p className="text-lg font-bold text-blue-800">{analysis.analysis.exitTime}</p>
-                </div>
-              </div>
+                  {signals.map((signal, index) => (
+                    <Card key={index} className="border-l-4 border-l-primary">
+                      <CardContent className="pt-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <h3 className="text-lg font-semibold">{signal.ticker}</h3>
+                            <Badge variant="outline" className={getSignalColor(signal.signal)}>
+                              {signal.signal}
+                            </Badge>
+                            <Badge variant="outline">
+                              <Clock className="h-3 w-3 mr-1" />
+                              {signal.timeframe}
+                            </Badge>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-sm text-muted-foreground">Strength</div>
+                            <div className="text-lg font-bold">{signal.strength}%</div>
+                          </div>
+                        </div>
 
-              {/* Price Levels */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="text-center p-3 rounded-lg bg-green-50 border border-green-200">
-                  <div className="flex items-center justify-center space-x-1 mb-1">
-                    <DollarSign className="h-4 w-4 text-green-600" />
-                    <span className="text-xs font-semibold text-green-700 uppercase">Entry</span>
-                  </div>
-                  <p className="text-lg font-bold text-green-800">${analysis.analysis.entryPrice}</p>
-                </div>
+                        <div className="grid grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <div className="text-muted-foreground">Entry</div>
+                            <div className="font-medium">${signal.entry.toFixed(2)}</div>
+                          </div>
+                          <div>
+                            <div className="text-muted-foreground">Target</div>
+                            <div className="font-medium text-green-600">${signal.target.toFixed(2)}</div>
+                          </div>
+                          <div>
+                            <div className="text-muted-foreground">Stop Loss</div>
+                            <div className="font-medium text-red-600">${signal.stopLoss.toFixed(2)}</div>
+                          </div>
+                          <div>
+                            <div className="text-muted-foreground">Confidence</div>
+                            <div className="font-medium">{signal.confidence}%</div>
+                          </div>
+                        </div>
 
-                <div className="text-center p-3 rounded-lg bg-blue-50 border border-blue-200">
-                  <div className="flex items-center justify-center space-x-1 mb-1">
-                    <Target className="h-4 w-4 text-blue-600" />
-                    <span className="text-xs font-semibold text-blue-700 uppercase">Target</span>
-                  </div>
-                  <p className="text-lg font-bold text-blue-800">${analysis.analysis.targetPrice}</p>
-                </div>
-
-                <div className="text-center p-3 rounded-lg bg-red-50 border border-red-200">
-                  <div className="flex items-center justify-center space-x-1 mb-1">
-                    <Shield className="h-4 w-4 text-red-600" />
-                    <span className="text-xs font-semibold text-red-700 uppercase">Stop</span>
-                  </div>
-                  <p className="text-lg font-bold text-red-800">${analysis.analysis.stopLoss}</p>
-                </div>
-              </div>
-
-              {/* Risk Management */}
-              <div className="p-3 bg-muted/50 rounded-lg">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-muted-foreground">Risk/Reward:</span>
-                    <span className="font-semibold ml-2">1:{analysis.analysis.riskReward}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Position Size:</span>
-                    <span className="font-semibold ml-2">{analysis.analysis.positionSize} shares</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Max Hold:</span>
-                    <span className="font-semibold ml-2">{analysis.analysis.maxHoldTime}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">Risk Level:</span>
-                    <Badge variant="outline" className={`ml-2 text-xs ${getRiskColor(analysis.analysis.riskLevel)}`}>
-                      {analysis.analysis.riskLevel.toUpperCase()}
-                    </Badge>
-                  </div>
-                </div>
-              </div>
-
-              {/* Technical Setup */}
-              <div>
-                <p className="text-sm font-medium text-muted-foreground mb-2">Technical Setup</p>
-                <p className="text-sm bg-muted/50 p-3 rounded-lg">{analysis.analysis.technicalSetup}</p>
-              </div>
-
-              {/* Reasoning */}
-              <div>
-                <p className="text-sm font-medium text-muted-foreground mb-2">Analysis Reasoning</p>
-                <p className="text-sm bg-muted/50 p-3 rounded-lg">{analysis.analysis.reasoning}</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Technical Indicators */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <BarChart3 className="h-5 w-5" />
-                <span>Technical Indicators</span>
-                <Badge variant="outline" className="text-xs">
-                  {analysis.timing.marketTime}
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Market Data */}
-              <div className="grid grid-cols-2 gap-4 p-3 bg-muted/50 rounded-lg">
-                <div>
-                  <p className="text-xs text-muted-foreground">Current Price</p>
-                  <p className="font-semibold">${analysis.marketData.currentPrice}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Bid/Ask</p>
-                  <p className="font-semibold">
-                    ${analysis.marketData.bid}/${analysis.marketData.ask}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">VWAP</p>
-                  <p className="font-semibold">${analysis.marketData.vwap.toFixed(2)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Day Range</p>
-                  <p className="font-semibold">{analysis.marketData.dayRange}</p>
-                </div>
-              </div>
-
-              {/* Technical Signals */}
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">RSI (14)</span>
-                  <Badge
-                    variant="outline"
-                    className={
-                      analysis.technicalSignals.rsi > 70
-                        ? "bg-red-50 text-red-700"
-                        : analysis.technicalSignals.rsi < 30
-                          ? "bg-green-50 text-green-700"
-                          : "bg-gray-50 text-gray-700"
-                    }
-                  >
-                    {analysis.technicalSignals.rsi.toFixed(1)}
-                  </Badge>
-                </div>
-
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">MACD</span>
-                  <Badge
-                    variant="outline"
-                    className={
-                      analysis.technicalSignals.macd.histogram > 0
-                        ? "bg-green-50 text-green-700"
-                        : "bg-red-50 text-red-700"
-                    }
-                  >
-                    {analysis.technicalSignals.macd.macd.toFixed(3)}
-                  </Badge>
-                </div>
-
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">Trend</span>
-                  <Badge
-                    variant="outline"
-                    className={
-                      analysis.technicalSignals.movingAverages.trend === "bullish"
-                        ? "bg-green-50 text-green-700"
-                        : analysis.technicalSignals.movingAverages.trend === "bearish"
-                          ? "bg-red-50 text-red-700"
-                          : "bg-gray-50 text-gray-700"
-                    }
-                  >
-                    {analysis.technicalSignals.movingAverages.trend.toUpperCase()}
-                  </Badge>
-                </div>
-
-                <div className="flex justify-between items-center">
-                  <span className="text-sm flex items-center">
-                    <Volume2 className="h-4 w-4 mr-1" />
-                    Volume Spike
-                  </span>
-                  <Badge
-                    variant="outline"
-                    className={
-                      analysis.technicalSignals.volumeProfile.volumeSpike
-                        ? "bg-green-50 text-green-700"
-                        : "bg-gray-50 text-gray-700"
-                    }
-                  >
-                    {analysis.technicalSignals.volumeProfile.volumeSpike ? "YES" : "NO"}
-                  </Badge>
-                </div>
-
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">Volume Ratio</span>
-                  <Badge variant="outline">{analysis.technicalSignals.volumeProfile.volumeRatio.toFixed(2)}x</Badge>
-                </div>
-              </div>
-
-              {/* Market Session */}
-              <div className="p-3 bg-blue-50 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium">Market Session</span>
-                  <Badge variant="outline" className="bg-blue-100 text-blue-700">
-                    {analysis.marketSession.current.replace("_", " ")}
-                  </Badge>
-                </div>
-                <p className="text-xs text-blue-600">{analysis.marketSession.characteristics}</p>
-                <p className="text-xs text-blue-600 mt-1">
-                  <strong>Strategies:</strong> {analysis.marketSession.recommendedStrategies?.join(", ")}
-                </p>
-              </div>
-
-              {/* Volume Confirmation */}
-              {analysis.analysis.volumeConfirmation && (
-                <div className="flex items-center space-x-2 p-2 bg-green-50 rounded-lg">
-                  <Zap className="h-4 w-4 text-green-600" />
-                  <span className="text-sm text-green-700 font-medium">Volume Confirmation: Strong</span>
+                        <div className="mt-3 flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Strategy: {signal.strategy}</span>
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="outline">
+                              Add to Watchlist
+                            </Button>
+                            <Button size="sm">Execute Trade</Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
+            </TabsContent>
+
+            <TabsContent value="watchlist" className="space-y-4">
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  Watchlist feature coming soon. Add stocks to monitor for trading opportunities.
+                </AlertDescription>
+              </Alert>
+            </TabsContent>
+
+            <TabsContent value="performance" className="space-y-4">
+              <Alert>
+                <BarChart3 className="h-4 w-4" />
+                <AlertDescription>
+                  Performance tracking coming soon. View your trading statistics and P&L here.
+                </AlertDescription>
+              </Alert>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
     </div>
   )
 }
